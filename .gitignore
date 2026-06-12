@@ -1,0 +1,67 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### Project-specific ###
+# Vue build output is copied here by `vite build` / the Gradle node plugin — generated, not source.
+src/main/resources/static/
+# Sidecar bundle is copied here by the sidecarBuild Gradle task — generated, not source.
+src/main/resources/sidecar/
+# Sidecar bundle extracted from the jar at runtime, relative to the server working dir.
+_claude-sidecar/
+# Scratch working dir used by the SDK-migration spike scripts (sidecar/spike*.mjs).
+_spike_cwd/
+# Scheduled-task artifacts created at runtime, relative to the server working dir.
+_claude-tasks/
+# Server-scheduler task store + run reports created at runtime (claude.server-schedule.store).
+_claude-server-tasks/
+# Web-push VAPID keypair + browser subscriptions created at runtime (claude.push.store).
+_claude-push/
+# Lucene full-text index built at runtime (claude.search.index-dir).
+_claude-search-index/
+# Telegram UI settings (incl. the bot token) persisted at runtime (claude.telegram.store).
+_claude-telegram/
+# Local screenshots / scratch
+_shot.png
+# Local Claude Code project settings — never publish.
+.claude/
+# Self-signed TLS keystore — generated locally by scripts/gen-cert.bat. Never commit private keys.
+certs/
+*.p12
+# EXCEPT the test fixture (junk key, never used for a real listener) — CertificateController tests.
+!src/test/resources/certs/
+!src/test/resources/certs/test-keystore.p12
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/

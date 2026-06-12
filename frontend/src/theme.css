@@ -1,0 +1,301 @@
+/* Warm dark theme — clay accent. Ported from the WPF App.xaml palette. */
+:root {
+  --bg0: #181715;
+  --bg1: #201e1b;
+  --bg2: #2a2723;
+  --bg3: #35312b;
+  --border: #3a352f;
+  --accent: #d97757;
+  --accent-hover: #e5896c;
+  --accent-dim: rgba(217, 119, 87, 0.2);
+  --text: #ede9e3;
+  --text-dim: #a8a098;
+  --text-faint: #77716a;
+  --user-bubble: #2c2823;
+  --tool-bg: #1e1c19;
+  --status-waiting: #e8a33d;
+  --status-working: #5fb873;
+  --status-idle: #77716a; /* neutral (text-faint): an open terminal, nothing needed */
+  --diff-add-bg: rgba(95, 184, 115, 0.13);
+  --diff-add-fg: #5fb873;
+  --diff-del-bg: rgba(232, 90, 77, 0.12);
+  --diff-del-fg: #e85a4d;
+  --mono: "Cascadia Code", "Consolas", "Courier New", monospace;
+  --ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg0);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 13.5px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg3);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #44403a;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* buttons */
+.btn {
+  font-family: var(--ui);
+  font-size: 13px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+  user-select: none;
+}
+.btn-accent {
+  background: var(--accent);
+  color: #1a1410;
+  font-weight: 600;
+}
+.btn-accent:hover {
+  background: var(--accent-hover);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-ghost:hover {
+  background: var(--bg3);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* inputs */
+.input {
+  background: var(--bg0);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-family: var(--ui);
+  font-size: 13px;
+  caret-color: var(--accent);
+  outline: none;
+  width: 100%;
+}
+.input:focus {
+  border-color: var(--accent);
+}
+.input::placeholder {
+  color: var(--text-faint);
+}
+
+/* status dot */
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.dot-waiting {
+  background: var(--status-waiting);
+}
+.dot-working {
+  background: var(--status-working);
+}
+.dot-idle {
+  background: var(--status-idle);
+}
+
+/* loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-dim);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+  flex: none;
+}
+/* centred "loading…" row for list panes */
+.loading-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 20px 10px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* generic list rows */
+.row {
+  border-radius: 8px;
+  padding: 9px 11px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.1s, border-color 0.1s;
+}
+.row:hover {
+  background: var(--bg2);
+}
+.row.selected {
+  background: var(--bg3);
+  border-color: var(--accent-dim);
+}
+
+.pane-label {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 4px 6px 8px;
+  font-weight: 600;
+}
+
+/* collapse chevron in the projects/sessions pane headers */
+.pane-collapse {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px 7px;
+  font-size: 12px;
+  line-height: 1;
+  flex: none;
+}
+.pane-collapse:hover {
+  background: var(--bg3);
+  color: var(--text);
+}
+
+.dim {
+  color: var(--text-dim);
+}
+.faint {
+  color: var(--text-faint);
+}
+.accent {
+  color: var(--accent);
+}
+
+/* markdown */
+.markdown-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+.markdown-body p {
+  margin: 0 0 0.6em;
+}
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin: 0.7em 0 0.4em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.markdown-body h1 {
+  font-size: 1.4em;
+}
+.markdown-body h2 {
+  font-size: 1.22em;
+}
+.markdown-body h3 {
+  font-size: 1.08em;
+}
+.markdown-body a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+.markdown-body code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--tool-bg);
+  color: var(--accent);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.markdown-body pre {
+  background: var(--tool-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.markdown-body pre code {
+  background: none;
+  color: var(--text);
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.markdown-body blockquote {
+  margin: 0.5em 0;
+  padding: 0.1em 0.9em;
+  border-left: 3px solid var(--accent);
+  color: var(--text-dim);
+}
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.3em 0;
+  padding-left: 1.4em;
+}
+.markdown-body li {
+  margin: 0.15em 0;
+}
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
+  padding: 4px 9px;
+}
+.markdown-body img {
+  max-width: 100%;
+}

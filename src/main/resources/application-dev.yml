@@ -1,0 +1,16 @@
+# Dev profile (activated by SPRING_PROFILES_ACTIVE=dev in start-dev.bat).
+# Plain HTTP on loopback:8080 so the Vite dev server (:5173) can proxy /api + /sse to it — TLS only
+# runs in prod. The login wall stays ON: set CLAUDE_SECURITY_PASSWORD (start-dev.bat uses "dev").
+# The IP allowlist is relaxed so a dev box outside the allowlisted subnets isn't blocked.
+server:
+  address: 127.0.0.1
+  port: 8080
+  ssl:
+    enabled: false
+  http2:
+    # No TLS in dev → avoid h2c upgrade through the Vite proxy. (Compression stays on for API JSON.)
+    enabled: false
+
+claude:
+  security:
+    enforce-ip-allowlist: false

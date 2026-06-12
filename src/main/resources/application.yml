@@ -1,0 +1,121 @@
+spring:
+  application:
+    name: claude-conversation-web
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          # Default for static resources (index.html): always revalidate so a rebuilt SPA is picked
+          # up immediately. Revalidation is a conditional GET → 304 (no body) when unchanged, so it
+          # still saves bandwidth. Hashed assets under /assets/** get a long immutable cache via
+          # WebConfig instead.
+          no-cache: true
+
+server:
+  # Network-bound on purpose so LAN clients can reach it. The backend reads the local filesystem and
+  # launches processes, so exposure is gated by three layers: the IP allowlist (claude.security),
+  # the shared-password login wall, and TLS. Dev runs plain http on 8080 via the 'dev' profile.
+  address: 0.0.0.0
+  port: 8443
+  http2:
+    # Over TLS (prod) — fewer round-trips/multiplexed streams. Disabled in dev (h2c + the Vite proxy).
+    enabled: true
+  compression:
+    # gzip text responses to save bandwidth (matters most over a VPN). NOTE: the streaming
+    # endpoints (chat application/x-ndjson, /sse/live text/event-stream) are deliberately NOT in this
+    # list, so they stream unbuffered. min-response-size avoids gzipping tiny payloads.
+    enabled: true
+    mime-types: text/html,text/css,text/plain,text/xml,application/json,application/javascript,text/javascript,image/svg+xml
+    min-response-size: 1024
+  ssl:
+    enabled: true
+    key-store: file:./certs/keystore.p12
+    key-store-type: PKCS12
+    key-store-password: ${CLAUDE_SSL_KEYSTORE_PASSWORD:changeit}
+    key-alias: claudeweb
+
+claude:
+  home: ${user.home}/.claude
+  # Resolved relative to the server working directory (user.dir). No absolute paths for our own data.
+  tasks-root: _claude-tasks
+  auto-open-browser: true
+  # auto detects from os.name. Force with windows | mac | linux, or noop to disable OS actions.
+  os-integration: auto
+  chat:
+    # Which backend drives a chat turn:
+    #   sdk — persistent Node sidecar on the Claude Agent SDK: no per-turn cold start, interactive
+    #         tool-permission cards, AskUserQuestion answered within the same turn. Needs Node 20+.
+    #   cli — legacy fallback: a fresh `claude -p` per turn, headless (permissions frozen per turn).
+    engine: sdk
+    # `default` (with the sdk engine) = every non-allowlisted tool waits for an Allow/Deny card in
+    # the browser; unanswered cards are auto-denied after permission-timeout. `plan` is read-only;
+    # `acceptEdits` lets Claude write files; `bypassPermissions` lets it run ANY shell command on the
+    # host — only the login wall + IP allowlist stand in front of that. On the cli engine `default`
+    # can't prompt (headless), so set plan/acceptEdits/bypassPermissions there instead.
+    # allow-per-request lets the composer pick per message.
+    permission-mode: default
+    allow-per-request-permission-mode: true
+    # sdk engine: turn-timeout is an inactivity watchdog (paused while a card waits on the user);
+    # permission-timeout auto-denies unanswered cards; session-idle-timeout reaps warm sidecars;
+    # turn-hard-timeout is the absolute cap on one streamed turn. cli engine: turn-timeout only.
+    turn-timeout: 10m
+    permission-timeout: 5m
+    session-idle-timeout: 15m
+    turn-hard-timeout: 60m
+    executable: claude
+    node-executable: node
+    # Pasted/dropped images in the composer (sdk engine only; the headless cli engine rejects them).
+    image-max-count: 4
+    image-max-bytes: 5242880
+  # $/MTok rates used for the ESTIMATED session cost shown in the UI. A key matches when the model id
+  # contains it as a substring (first match wins). Cache: write = 1.25x input, read = 0.1x input.
+  # These mirror the code defaults — override here when Anthropic pricing changes.
+  pricing:
+    cache-write-multiplier: 1.25
+    cache-read-multiplier: 0.10
+    models:
+      haiku:  { input: 1.00, output: 5.00 }
+      sonnet: { input: 3.00, output: 15.00 }
+      opus:   { input: 5.00, output: 25.00 }
+      fable:  { input: 10.00, output: 50.00 }
+  # Lucene full-text index speeding up global search on large stores. Background-built on startup,
+  # kept fresh by the file watcher; until ready (or when disabled) search uses the brute-force scan.
+  # The indexed path matches words/word-prefixes (no mid-word substrings); every hit is verified
+  # against the file, so results never contain false positives.
+  search:
+    enabled: true
+    index-dir: _claude-search-index
+  # Browser push for WAITING chat turns (a permission/question card needs you). The VAPID keypair +
+  # subscriptions persist under `store`. NOTE: service workers need a TRUSTED https origin — import
+  # the self-signed cert on LAN clients, or use dev (localhost is always trusted).
+  push:
+    enabled: true
+    store: _claude-push
+    subject: "mailto:claude-web@localhost"
+    cooldown: 30s
+    # Absolute origin used for deep links in Telegram messages, e.g. https://192.168.1.10:8443
+    # public-base-url: ""
+  # Telegram pings for the same WAITING events — works with no cert/service-worker setup at all.
+  # These are seed values: the in-app settings dialog (the ✈ button) can change them live and
+  # persists overrides to `store`/settings.json (which then win over this yml on restart). An
+  # env-provided bot-token is never copied to disk — leave the UI token field blank to keep it.
+  telegram:
+    enabled: false
+    bot-token: ${CLAUDE_TELEGRAM_BOT_TOKEN:}
+    chat-id: ""
+    store: _claude-telegram
+  security:
+    # Shared password — set via CLAUDE_SECURITY_PASSWORD. Blank here means the app refuses to start.
+    password: ${CLAUDE_SECURITY_PASSWORD:}
+    session-ttl: 12h
+    # Only these client IPs may connect; everything else gets 403. Bare addresses are exact matches.
+    # Add your own LAN/VPN subnets here, e.g.:
+    #   - 192.168.1.0/24   # home LAN
+    #   - 10.0.0.0/24      # VPN client pool
+    allowed-cidrs:
+      - 127.0.0.1
+      - ::1
+
+logging:
+  level:
+    ee.doniss.claudeweb: INFO
