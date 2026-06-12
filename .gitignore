@@ -28,6 +28,9 @@ _claude-telegram/
 _shot.png
 # Local Claude Code project settings — never publish.
 .claude/
+# Local machine config overrides (e.g. your LAN subnets in claude.security.allowed-cidrs) —
+# Spring Boot loads ./config/application.yml automatically. Never publish.
+/config/
 # Self-signed TLS keystore — generated locally by scripts/gen-cert.bat. Never commit private keys.
 certs/
 *.p12

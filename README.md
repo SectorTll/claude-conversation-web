@@ -152,7 +152,9 @@ The full set (sidecar paths, executables, all timeouts) is documented in
 
 The server reads your filesystem and launches processes, so it is **not** wide open: reaching it
 requires all of (1) a source IP in `claude.security.allowed-cidrs` (default localhost only — add
-your LAN/VPN subnets to let other machines in), (2) the shared password, and (3) HTTPS. The self-signed keystore (`certs/keystore.p12`)
+your LAN/VPN subnets to let other machines in), (2) the shared password, and (3) HTTPS. A handy
+place for your subnets is `./config/application.yml` next to the server (git-ignored, loaded
+automatically by Spring Boot) — that keeps your network layout out of version control. The self-signed keystore (`certs/keystore.p12`)
 is generated locally by `scripts/gen-cert.bat <lan-ip>` and is git-ignored — pass your real LAN IP
 so other machines don't hit a certificate host-mismatch. With security on, a blank password is a
 hard startup error. To run the old loopback-only / no-login mode, set `claude.security.enabled=false`
@@ -170,3 +172,7 @@ host — the login wall and IP allowlist are the only things in front of that. T
 the interactive `default` mode (every tool call needs your explicit Allow), and
 `claude.chat.allow-per-request-permission-mode=false` pins the server default and ignores the
 client's picker.
+
+## License
+
+[MIT](LICENSE)
