@@ -123,11 +123,21 @@ afterwards.
   per session) fanning WAITING events to `PushSender`s: `WebPushSender` (`com.interaso:webpush`,
   VAPID keys + `PushSubscriptionStore` under `_claude-push/`) and `TelegramSender` (bot
   sendMessage, injectable HTTP seam; `sendForResult` surfaces the API status for the test button).
+  Telegram pings are ANSWERABLE: `TelegramSender` attaches inline keyboards (Allow/Deny; one button
+  per option for single-question cards — multi-question cards stay display-only since an answer
+  must cover every question), `TelegramCallbacks` maps single-use 12-char tokens to actions
+  (Telegram caps `callback_data` at 64 bytes), and `TelegramUpdatesPoller` (daemon long-poll
+  thread, idles with no HTTP while telegram is disabled — live-enableable from the settings
+  dialog) routes `callback_query` into `ChatEngine.decide/answer`, strips the buttons, and toasts
+  the outcome. Callbacks from any chat other than the configured `chat-id` are dropped silently.
   `TelegramSettingsService` applies UI overrides onto the live `ClaudeProperties` at
   `ApplicationReadyEvent` and persists them under `_claude-telegram/`.
 - `service/chat/` — the chat engines behind one interface (`ChatEngine`, selected by
   `ChatEngineConfig` from `claude.chat.engine`; shared helpers `PermissionModes` (the resolve gate)
-  and `ChatEvents` (browser-event builders)):
+  and `ChatEvents` (browser-event builders)). Also `SlashCommandCatalog` — scans user-invocable
+  skills (`<root>/skills/*/SKILL.md`) + custom commands (`<root>/commands/**.md`) from the Claude
+  home and the project's `.claude` (project wins a name clash) for the composer's `/`-autocomplete;
+  hand-rolled flat frontmatter parse, re-scanned per request (tiny dirs, no cache). The engines:
   - `CliChatEngine` — legacy: drives `claude -p` for one turn, parses its stream-json NDJSON into
     simplified browser events, one in-flight turn per session id, kills the process at a question.
   - `chat/sdk/` — `SdkChatEngine` (per-session `SidecarSession` map, idle reaper, `decide`/`answer`
@@ -163,7 +173,12 @@ afterwards.
 - `web/` — REST controllers + `LiveStreamController` (SSE) + `ChatController` (NDJSON chat streaming
   + `POST …/permission` + `POST …/answer` for the sdk engine's in-flight cards) +
   `ChatCapabilitiesController` (`GET /api/chat/capabilities` — the composer gates the `default` mode
-  and the image-attach UI on it) + `SessionController` (incl. `POST …/branch` — fork at a message) +
+  and the image-attach UI on it) + `SlashCommandController` (`GET /api/chat/commands?projectId=` —
+  the composer's slash-autocomplete catalog + `GET /api/chat/files` — cwd file listing for
+  `@`-mentions, walked server-side by `CwdFileLister` with junk dirs skipped and a 2000-file cap;
+  picking an entry only edits the composer text, the CLI expands `/name args` and `@path` itself)
+  + `WaitingController` (`GET /api/waiting` — every session parked on a card, with titles; feeds
+  the header's ⏳ panel; the engine tracks sessionId→projectId in `SdkChatEngine.projectBySession`) + `SessionController` (incl. `POST …/branch` — fork at a message) +
   `PushController` (`/api/push/key|subscribe|unsubscribe`) + `TelegramSettingsController`
   (`/api/settings/telegram` GET/POST + `…/test`) + `CertificateController` (`/cert/**` —
   cert download + Windows trust installer, pre-login) + `ApiExceptionHandler` + `SpaController`
@@ -173,8 +188,17 @@ afterwards.
   `SessionCookie`, `SecurityConfig` (builds the matcher; fail-fast if no password).
 - `frontend/src/` — `stores/` (Pinia; `conversation.ts` owns chat `send`/`cancel`/`decidePermission`/
   `answerQuestion`/`syncPendingAsks`/`branchFrom` + optimistic bubbles incl. live thinking,
-  tool-result bodies and image-attachment chips), `components/` (3-pane UI; `Composer.vue` is the
-  chat box with the permission-mode and model pickers + image paste/drop chips;
+  tool-result bodies and image-attachment chips), `components/` (3-pane UI, single-pane below 880px —
+  `App.vue` stage classes + `.mback` back buttons in the panes; `Composer.vue` is the
+  chat box with the permission-mode and model pickers + image paste/drop chips + ↑-history recall
+  (empty composer only), per-session drafts (`sessions.draftTextFor`, localStorage), the
+  slash-command popup with a post-completion argument-hint row, and the caret-anchored `@`-file
+  popup (`lib/slashCommands.ts` holds all fragment/filter logic; popup keys win over history
+  recall — recall needs an empty composer so they can't overlap); `MessageCard.vue` has hover
+  ✎ edit&resend (fork at the previous message via `conv.armEditResend`, banner in the composer)
+  and ⑂ fork buttons; `ConversationPane.vue` has ⤓ Export (`lib/exportMarkdown.ts`);
+  `AppHeader.vue` shows the ⏳ waiting panel (deep-links via `openSessionPath`); markdown code
+  blocks get highlight.js colors (`lib/markdown.ts`, common-languages bundle);
   `PermissionView.vue`/`QuestionView.vue` are the interactive cards — Edit/Write permissions render
   a `DiffView.vue` diff before Allow/Deny; `ToolBlockView.vue` delegates to `DiffView` when a block
   carries `oldText`/`newText`; `MessageCard.vue` has the hover ⑂ fork button; `AppHeader.vue` has

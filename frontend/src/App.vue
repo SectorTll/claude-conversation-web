@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import AppHeader from './components/AppHeader.vue'
 import StatusBar from './components/StatusBar.vue'
 import ProjectsPane from './components/ProjectsPane.vue'
@@ -12,15 +12,25 @@ import CertHelpDialog from './components/CertHelpDialog.vue'
 import TelegramSettingsDialog from './components/TelegramSettingsDialog.vue'
 import LoginView from './components/LoginView.vue'
 import { useProjectsStore } from './stores/projects'
+import { useSessionsStore } from './stores/sessions'
 import { useLiveStore } from './stores/live'
 import { useAuthStore } from './stores/auth'
 import { useUiStore } from './stores/ui'
 import { installDeepLinks } from './lib/deepLink'
 
 const projects = useProjectsStore()
+const sessions = useSessionsStore()
 const live = useLiveStore()
 const auth = useAuthStore()
 const ui = useUiStore()
+
+// Narrow screens show ONE pane at a time; the deepest selection wins. Desktop ignores the class.
+const mobileStage = computed(() => {
+  if (sessions.selectedId || sessions.draftMode) {
+    return 'chat'
+  }
+  return projects.selectedId ? 'sessions' : 'projects'
+})
 
 onMounted(() => auth.check())
 
@@ -52,7 +62,7 @@ onBeforeUnmount(() => live.disconnect())
   <LoginView v-else-if="!auth.authenticated" />
   <div v-else class="app">
     <AppHeader />
-    <div class="body">
+    <div class="body" :class="`stage-${mobileStage}`">
       <div class="col projects" :class="{ collapsed: ui.projectsCollapsed }">
         <ProjectsPane v-if="!ui.projectsCollapsed" />
         <button v-else class="rail" title="Expand projects" @click="ui.togglePane('projects')">
@@ -148,5 +158,27 @@ onBeforeUnmount(() => live.disconnect())
   width: 1px;
   background: var(--border);
   flex: none;
+}
+
+/* Mobile: one pane at a time (projects → sessions → conversation), back buttons in pane headers. */
+@media (max-width: 880px) {
+  .divider {
+    display: none;
+  }
+  .col.projects,
+  .col.sessions {
+    width: 100%;
+  }
+  .col.collapsed {
+    width: 100%;
+  }
+  .body.stage-chat .projects,
+  .body.stage-chat .sessions,
+  .body.stage-sessions .projects,
+  .body.stage-sessions .conversation,
+  .body.stage-projects .sessions,
+  .body.stage-projects .conversation {
+    display: none;
+  }
 }
 </style>

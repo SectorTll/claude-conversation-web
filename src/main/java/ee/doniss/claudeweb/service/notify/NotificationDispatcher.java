@@ -116,7 +116,33 @@ public class NotificationDispatcher {
         }
         String path = "/p/" + URLEncoder.encode(projectId, StandardCharsets.UTF_8)
                 + "/s/" + URLEncoder.encode(sessionId, StandardCharsets.UTF_8);
-        return new WaitingEvent(projectId, sessionId, kind, title, body, path);
+        String requestId = card.get("requestId") instanceof String r ? r : null;
+        List<String> options = "question".equals(kind) ? singleQuestionOptions(card) : List.of();
+        return new WaitingEvent(projectId, sessionId, kind, title, body, path, requestId, options);
+    }
+
+    /**
+     * The answer labels of a SINGLE-question card. A card with several questions returns no options
+     * — a remote answer must cover every question, which buttons can't, so those cards stay
+     * display-only (the deep link still works).
+     */
+    @SuppressWarnings("unchecked")
+    private static List<String> singleQuestionOptions(Map<String, Object> card) {
+        if (!(card.get("questions") instanceof List<?> qs) || qs.size() != 1
+                || !(qs.get(0) instanceof Map<?, ?> q)) {
+            return List.of();
+        }
+        Object opts = ((Map<String, Object>) q).get("options");
+        if (!(opts instanceof List<?> list)) {
+            return List.of();
+        }
+        List<String> labels = new java.util.ArrayList<>();
+        for (Object o : list) {
+            if (o instanceof Map<?, ?> m && m.get("label") != null) {
+                labels.add(m.get("label").toString());
+            }
+        }
+        return labels;
     }
 
     @SuppressWarnings("unchecked")

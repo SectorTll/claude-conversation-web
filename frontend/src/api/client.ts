@@ -8,6 +8,7 @@ import type {
   ServerScheduledTask,
   ServerTaskSpec,
   SessionInfo,
+  SlashCommandInfo,
   TaskSpec,
 } from '@/types/models'
 
@@ -96,6 +97,14 @@ export type StreamEvent =
 
 /** A pending interactive card of an in-flight turn, as returned by GET …/pending. */
 export type PendingAsk = Extract<StreamEvent, { type: 'permission' } | { type: 'question' }>
+
+/** One session parked on unanswered cards — the global "what needs me" panel (GET /api/waiting). */
+export interface WaitingItem {
+  projectId: string
+  sessionId: string
+  title: string
+  cards: PendingAsk[]
+}
 
 /** What the active chat backend can do — drives the composer's mode picker and attach UI. */
 export interface ChatCapabilities {
@@ -268,8 +277,21 @@ export const api = {
   pendingAsks: (projectId: string, sessionId: string) =>
     getJson<PendingAsk[]>(`/api/projects/${enc(projectId)}/sessions/${enc(sessionId)}/pending`),
   chatCapabilities: () => getJson<ChatCapabilities>('/api/chat/capabilities'),
+  // Slash-command catalog for the composer autocomplete (user skills/commands + the project's).
+  chatCommands: (projectId: string | null) =>
+    getJson<SlashCommandInfo[]>(
+      projectId ? `/api/chat/commands?projectId=${enc(projectId)}` : '/api/chat/commands',
+    ),
+  // Files under the chat target's cwd for @-mention autocomplete (capped server-side).
+  chatFiles: (projectId: string, sessionId: string | null) =>
+    getJson<{ cwd: string; files: string[]; truncated: boolean }>(
+      `/api/chat/files?projectId=${enc(projectId)}` +
+        (sessionId ? `&sessionId=${enc(sessionId)}` : ''),
+    ),
 
   live: () => getJson<LiveSnapshot>('/api/live'),
+  // Every session parked on an unanswered card, across all projects (the bell panel).
+  waiting: () => getJson<WaitingItem[]>('/api/waiting'),
 
   // OS actions (wired to the backend in the OS-integration step; 501 on unsupported platforms).
   resume: (projectId: string, sessionId: string, fork: boolean) =>

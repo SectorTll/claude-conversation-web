@@ -53,6 +53,9 @@ public class SdkChatEngine implements ChatEngine {
     /** Live sidecar sessions keyed by session id (re-keyed once the sidecar reports the real id). */
     private final ConcurrentHashMap<String, SidecarSession> sessions = new ConcurrentHashMap<>();
 
+    /** Which project each live session belongs to — the global WAITING panel needs the deep link. */
+    private final ConcurrentHashMap<String, String> projectBySession = new ConcurrentHashMap<>();
+
     public SdkChatEngine(ClaudeProperties props, StreamingProcessRunner runner, SidecarLocator locator,
                          ClaudeDataService data, ObjectMapper mapper,
                          @Qualifier("claudeChatExecutor") Executor executor,
@@ -82,6 +85,7 @@ public class SdkChatEngine implements ChatEngine {
         String cwd = data.sessionWorkingDir(projectId, sessionId);
         SidecarSession session = sessions.computeIfAbsent(sessionId,
                 id -> newSession(projectId, id, cwd, false));
+        projectBySession.put(sessionId, projectId);
         return startGuarded(session, text, mode, ChatModels.resolve(model), attachments);
     }
 
@@ -94,6 +98,7 @@ public class SdkChatEngine implements ChatEngine {
         String sessionId = UUID.randomUUID().toString();
         SidecarSession session = newSession(projectId, sessionId, cwd, true);
         sessions.put(sessionId, session);
+        projectBySession.put(sessionId, projectId);
         return startGuarded(session, text, mode, ChatModels.resolve(model), attachments);
     }
 
@@ -124,6 +129,10 @@ public class SdkChatEngine implements ChatEngine {
         if (s != null) {
             sessions.put(actualId, s);
         }
+        String pid = projectBySession.remove(requestedId);
+        if (pid != null) {
+            projectBySession.put(actualId, pid);
+        }
     }
 
     @Override
@@ -146,6 +155,18 @@ public class SdkChatEngine implements ChatEngine {
     public List<java.util.Map<String, Object>> pendingAsks(String sessionId) {
         SidecarSession s = sessions.get(sessionId);
         return s == null ? List.of() : s.pendingCards();
+    }
+
+    @Override
+    public java.util.Map<String, String> waitingSessions() {
+        java.util.Map<String, String> out = new java.util.HashMap<>();
+        sessions.forEach((sid, s) -> {
+            String pid = projectBySession.get(sid);
+            if (pid != null && s.hasPendingAsk()) {
+                out.put(sid, pid);
+            }
+        });
+        return out;
     }
 
     private SidecarSession required(String sessionId) {
@@ -179,6 +200,7 @@ public class SdkChatEngine implements ChatEngine {
             if (s.idleLongerThan(idleNanos)) {
                 s.close();
                 sessions.remove(sid, s);
+                projectBySession.remove(sid);
             }
         });
     }
@@ -187,5 +209,6 @@ public class SdkChatEngine implements ChatEngine {
     public void shutdownAll() {
         sessions.forEach((sid, s) -> s.close());
         sessions.clear();
+        projectBySession.clear();
     }
 }

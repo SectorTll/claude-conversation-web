@@ -140,6 +140,15 @@ export interface ChatMessage {
   attachments?: { mediaType: string; dataUrl: string }[]
 }
 
+/** One user-invocable slash command (skill or custom command) for the composer's autocomplete. */
+export interface SlashCommandInfo {
+  name: string
+  description: string
+  argumentHint: string | null
+  source: 'user' | 'project'
+  kind: 'skill' | 'command'
+}
+
 export interface SearchHit {
   session: SessionInfo
   projectId: string

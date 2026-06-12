@@ -7,6 +7,7 @@ import { useActionsStore } from '@/stores/actions'
 import { useUiStore } from '@/stores/ui'
 import MessageCard from './MessageCard.vue'
 import Composer from './Composer.vue'
+import { conversationToMarkdown, exportFileName } from '@/lib/exportMarkdown'
 
 const sessions = useSessionsStore()
 const conv = useConversationStore()
@@ -43,6 +44,29 @@ function openRename() {
   if (session.value) {
     ui.openRename({ projectId: pid.value, session: session.value })
   }
+}
+
+// Mobile back: deselect the session so the single-pane flow returns to the sessions list.
+function backToSessions() {
+  sessions.exitDraft()
+  sessions.selectedId = null
+  conv.clear()
+}
+
+// Export the conversation ON SCREEN (the canonical disk content after a load) as a .md download.
+function exportMd() {
+  const s = session.value
+  if (!s) {
+    return
+  }
+  const blob = new Blob([conversationToMarkdown(s.title, conv.messages)], {
+    type: 'text/markdown;charset=utf-8',
+  })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = exportFileName(s.title)
+  a.click()
+  URL.revokeObjectURL(a.href)
 }
 
 // Auto-scroll: follow new content while the user is parked near the bottom; don't yank if they
@@ -87,6 +111,7 @@ watch(
   <div class="pane">
     <template v-if="session || sessions.draftMode">
       <div v-if="session" class="toolbar">
+        <button class="mback" title="Back to sessions" @click="backToSessions">←</button>
         <div class="titles">
           <div class="title">{{ session.title }}</div>
           <div class="subtitle faint" :title="subtitleTooltip">{{ subtitle }}</div>
@@ -101,9 +126,13 @@ watch(
             ⑂ Fork
           </button>
           <button class="btn btn-ghost" @click="actions.newSession(pid)">＋ New in CLI</button>
+          <button class="btn btn-ghost" title="Download this conversation as Markdown" @click="exportMd">
+            ⤓ Export
+          </button>
         </div>
       </div>
       <div v-else class="toolbar">
+        <button class="mback" title="Back to sessions" @click="backToSessions">←</button>
         <div class="titles">
           <div class="title">New chat</div>
           <div class="subtitle faint">{{ draftSubtitle }}</div>
@@ -158,6 +187,39 @@ watch(
   gap: 16px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
+}
+.mback {
+  display: none;
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.mback:hover {
+  color: var(--accent);
+}
+@media (max-width: 880px) {
+  .mback {
+    display: inline-block;
+  }
+  .toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .buttons {
+    flex-wrap: wrap;
+  }
+  .messages {
+    padding: 12px 10px 22px;
+  }
+  .convsearch {
+    padding: 8px 12px 0;
+  }
 }
 .titles {
   min-width: 0;

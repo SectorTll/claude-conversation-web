@@ -68,4 +68,12 @@ public interface ChatEngine {
     default List<Map<String, Object>> pendingAsks(String sessionId) {
         return List.of();
     }
+
+    /**
+     * Every session currently parked on an unanswered card, as sessionId → projectId — the global
+     * "what needs me" panel. Only engines with interactive cards have entries.
+     */
+    default Map<String, String> waitingSessions() {
+        return Map.of();
+    }
 }

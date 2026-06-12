@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChatMessage } from '@/types/models'
 import { useConversationStore } from '@/stores/conversation'
+import { useUiStore } from '@/stores/ui'
 import MarkdownView from './MarkdownView.vue'
 import ThinkingExpander from './ThinkingExpander.vue'
 import ToolBlockView from './ToolBlockView.vue'
@@ -13,6 +14,12 @@ const conv = useConversationStore()
 function onAnswer(text: string, selections: string[][]) {
   conv.answerQuestion(props.msg, text, selections)
 }
+
+function onEdit() {
+  if (!conv.armEditResend(props.msg)) {
+    useUiStore().setStatus('Nothing before this message to fork from')
+  }
+}
 </script>
 
 <template>
@@ -21,6 +28,15 @@ function onAnswer(text: string, selections: string[][]) {
       <div class="head" :title="msg.tokensDisplay ?? ''">
         <span class="role">{{ msg.roleHeader }}</span>
         <span class="time faint">{{ msg.timeDisplay }}</span>
+        <button
+          v-if="msg.user && msg.uuid"
+          class="forkbtn"
+          type="button"
+          title="Edit & resend — redo this prompt on a fork (the original stays intact)"
+          @click="onEdit"
+        >
+          ✎
+        </button>
         <button
           v-if="msg.uuid"
           class="forkbtn"
@@ -99,6 +115,10 @@ function onAnswer(text: string, selections: string[][]) {
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s;
+}
+/* Two hover buttons (✎ + ⑂) group at the right edge: only the first takes the auto margin. */
+.forkbtn + .forkbtn {
+  margin-left: 0;
 }
 .card:hover .forkbtn {
   opacity: 1;

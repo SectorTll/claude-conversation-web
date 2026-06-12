@@ -12,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -32,17 +33,19 @@ public class TelegramSender implements PushSender {
 
     private final ClaudeProperties props;
     private final ObjectMapper mapper;
+    private final TelegramCallbacks callbacks;
     private final Function<HttpRequest, HttpResult> http;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public TelegramSender(ClaudeProperties props, ObjectMapper mapper) {
-        this(props, mapper, defaultHttp());
+    public TelegramSender(ClaudeProperties props, ObjectMapper mapper, TelegramCallbacks callbacks) {
+        this(props, mapper, callbacks, defaultHttp());
     }
 
-    TelegramSender(ClaudeProperties props, ObjectMapper mapper,
+    TelegramSender(ClaudeProperties props, ObjectMapper mapper, TelegramCallbacks callbacks,
                    Function<HttpRequest, HttpResult> http) {
         this.props = props;
         this.mapper = mapper;
+        this.callbacks = callbacks;
         this.http = http;
     }
 
@@ -78,6 +81,10 @@ public class TelegramSender implements PushSender {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("chat_id", props.getTelegram().getChatId());
         body.put("text", text.toString());
+        List<List<Map<String, String>>> keyboard = keyboardFor(event);
+        if (!keyboard.isEmpty()) {
+            body.put("reply_markup", Map.of("inline_keyboard", keyboard));
+        }
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("https://api.telegram.org/bot" + props.getTelegram().getBotToken() + "/sendMessage"))
@@ -86,6 +93,40 @@ public class TelegramSender implements PushSender {
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                 .build();
         return http.apply(request);
+    }
+
+    /**
+     * Inline buttons so the card can be answered straight from Telegram: Allow/Deny for a
+     * permission, one button per option for a single-question card. Buttons carry short registry
+     * tokens (Telegram caps {@code callback_data} at 64 bytes); {@link TelegramUpdatesPoller}
+     * resolves them back into engine calls.
+     */
+    private List<List<Map<String, String>>> keyboardFor(WaitingEvent event) {
+        if (event.requestId() == null) {
+            return List.of();
+        }
+        List<List<Map<String, String>>> rows = new java.util.ArrayList<>();
+        if ("permission".equals(event.kind())) {
+            rows.add(List.of(
+                    button("✅ Allow", new TelegramCallbacks.Action(
+                            event.sessionId(), event.requestId(), "permission", true, null)),
+                    button("❌ Deny", new TelegramCallbacks.Action(
+                            event.sessionId(), event.requestId(), "permission", false, null))));
+        } else if ("question".equals(event.kind())) {
+            for (String option : event.options()) {
+                rows.add(List.of(button(truncateLabel(option), new TelegramCallbacks.Action(
+                        event.sessionId(), event.requestId(), "question", false, option))));
+            }
+        }
+        return rows;
+    }
+
+    private Map<String, String> button(String label, TelegramCallbacks.Action action) {
+        return Map.of("text", label, "callback_data", callbacks.register(action));
+    }
+
+    private static String truncateLabel(String label) {
+        return label.length() <= 60 ? label : label.substring(0, 59) + "…";
     }
 
     private static Function<HttpRequest, HttpResult> defaultHttp() {

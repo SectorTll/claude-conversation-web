@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { notifyEnabled, pushEnabled, togglePush, toggleNotify } from '@/lib/notify'
+import { api } from '@/api/client'
+import type { PendingAsk, WaitingItem } from '@/api/client'
+import { openSessionPath } from '@/lib/deepLink'
 import { useProjectsStore } from '@/stores/projects'
 import { useSearchStore } from '@/stores/search'
 import { useUiStore } from '@/stores/ui'
@@ -60,6 +63,33 @@ function refresh() {
   ui.setStatus('Refreshed')
 }
 
+// The global "what needs me" panel: every chat turn parked on a permission/question card,
+// across all projects. The ⏳ chip only renders while the live snapshot reports waiting turns.
+const waitingOpen = ref(false)
+const waitingItems = ref<WaitingItem[]>([])
+async function toggleWaiting() {
+  waitingOpen.value = !waitingOpen.value
+  if (waitingOpen.value) {
+    try {
+      waitingItems.value = await api.waiting()
+    } catch {
+      waitingItems.value = []
+    }
+  }
+}
+function cardSummary(c: PendingAsk | undefined): string {
+  if (!c) {
+    return ''
+  }
+  return c.type === 'permission'
+    ? `Allow ${c.toolName}?`
+    : (c.questions[0]?.question ?? 'Question')
+}
+async function openWaiting(w: WaitingItem) {
+  waitingOpen.value = false
+  await openSessionPath(`/p/${w.projectId}/s/${w.sessionId}`)
+}
+
 // Browser notifications for background-tab chat events (permission cards, finished turns).
 const notify = ref(notifyEnabled())
 async function onToggleNotify() {
@@ -115,6 +145,33 @@ async function onTogglePush() {
     </div>
 
     <div class="actions">
+      <div v-if="live.waitingCount > 0" class="waitwrap">
+        <button
+          class="btn btn-ghost waitbtn"
+          :title="`${live.waitingCount} turn(s) waiting on your decision`"
+          @click="toggleWaiting"
+        >
+          ⏳ {{ live.waitingCount }}
+        </button>
+        <div v-if="waitingOpen" class="backdrop" @click="waitingOpen = false"></div>
+        <div v-if="waitingOpen" class="waitpanel">
+          <div v-if="waitingItems.length === 0" class="waitempty faint">
+            Nothing pending — the list may have just resolved
+          </div>
+          <button
+            v-for="w in waitingItems"
+            :key="w.sessionId"
+            type="button"
+            class="waititem"
+            @click="openWaiting(w)"
+          >
+            <span class="w-title">{{ w.title }}</span>
+            <span class="w-sub faint">
+              {{ cardSummary(w.cards[0]) }}{{ w.cards.length > 1 ? `  (+${w.cards.length - 1})` : '' }}
+            </span>
+          </button>
+        </div>
+      </div>
       <button class="btn btn-ghost" title="Windows Task Scheduler" @click="ui.scheduleOpen = true">
         ⏱ Schedule
       </button>
@@ -217,5 +274,99 @@ async function onTogglePush() {
   gap: 8px;
   min-width: 230px;
   justify-content: flex-end;
+}
+.waitwrap {
+  position: relative;
+}
+.waitbtn {
+  color: var(--status-waiting);
+  border-color: var(--status-waiting);
+}
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+}
+.waitpanel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 360px;
+  max-height: 55vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--bg0);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  z-index: 30;
+}
+.waitempty {
+  padding: 14px;
+  font-size: 12px;
+  text-align: center;
+}
+.waititem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--ui);
+  text-align: left;
+  cursor: pointer;
+}
+.waititem:hover {
+  background: var(--tool-bg);
+}
+.w-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.w-sub {
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Mobile: brand + actions on the first row (wrapping as needed), search drops to its own row. */
+@media (max-width: 880px) {
+  .header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .brand {
+    min-width: 0;
+  }
+  .subtitle {
+    display: none;
+  }
+  .search {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none;
+    margin: 0;
+  }
+  .actions {
+    min-width: 0;
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+  .waitpanel {
+    width: min(360px, calc(100vw - 24px));
+  }
 }
 </style>

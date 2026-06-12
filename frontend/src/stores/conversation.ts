@@ -241,6 +241,16 @@ export const useConversationStore = defineStore('conversation', () => {
     if (!t && !(attachments && attachments.length > 0)) {
       return
     }
+    // An armed edit&resend forks the conversation first; the message then goes to the fork (which
+    // branchAt has selected). A failed fork aborts the send — falling through would append the
+    // edited text to the ORIGINAL session instead.
+    if (editPrevUuid.value) {
+      const uuid = editPrevUuid.value
+      cancelEditResend()
+      if (!(await branchAt(uuid))) {
+        return
+      }
+    }
     const sessions = useSessionsStore()
     const draft = sessions.draftMode
     const key = draft ? DRAFT_KEY : (sessions.selectedId ?? '')
@@ -525,20 +535,65 @@ export const useConversationStore = defineStore('conversation', () => {
    * without a uuid (optimistic live bubbles — they're not on disk yet).
    */
   async function branchFrom(msg: ChatMessage) {
+    if (msg.uuid) {
+      await branchAt(msg.uuid)
+    }
+  }
+
+  /** Fork the open session at the line `uuid` and select the fork. Returns false on failure. */
+  async function branchAt(uuid: string): Promise<boolean> {
     const sessions = useSessionsStore()
     const pid = useProjectsStore().selectedId ?? sessions.projectId
     const sid = sessions.draftMode ? null : sessions.selectedId
-    if (!msg.uuid || !pid || !sid) {
-      return
+    if (!pid || !sid) {
+      return false
     }
     try {
-      const created = await api.branch(pid, sid, msg.uuid)
+      const created = await api.branch(pid, sid, uuid)
       await sessions.refreshList(pid)
       await sessions.select(created.sessionId)
       useUiStore().setStatus(`Forked into "${created.title}"`)
+      return true
     } catch (e) {
       useUiStore().setError(e)
+      return false
     }
+  }
+
+  // --- edit & resend: redo one of your prompts on a fork --------------------------------------
+  // Armed by the ✎ button on a user message; the composer picks up the original text via
+  // `editSeedText`. The next send FORKS the conversation at the message before the edited one and
+  // sends the new text there — the original session stays intact. Disarmed on session switch.
+  const editPrevUuid = ref<string | null>(null)
+  const editSeedText = ref<string | null>(null)
+  const editArmed = computed(() => editPrevUuid.value !== null)
+
+  /** Arm edit&resend for `msg` (a user message on disk). False when there is no fork point. */
+  function armEditResend(msg: ChatMessage): boolean {
+    const i = messages.value.indexOf(msg)
+    if (i < 0 || !msg.uuid) {
+      return false
+    }
+    // The fork must end BEFORE the edited message — find the closest earlier on-disk line.
+    for (let j = i - 1; j >= 0; j--) {
+      const uuid = messages.value[j].uuid
+      if (uuid) {
+        editPrevUuid.value = uuid
+        editSeedText.value = msg.text
+        return true
+      }
+    }
+    return false // the very first message — nothing before it to fork from
+  }
+
+  function cancelEditResend() {
+    editPrevUuid.value = null
+    editSeedText.value = null
+  }
+
+  /** The composer consumed the seeded text (it stays armed until sent or cancelled). */
+  function clearEditSeed() {
+    editSeedText.value = null
   }
 
   /** Whether THIS tab has a turn streaming for `key` (live.ts gates mid-turn disk reloads on it). */
@@ -589,6 +644,11 @@ export const useConversationStore = defineStore('conversation', () => {
     answerQuestion,
     decidePermission,
     branchFrom,
+    editArmed,
+    editSeedText,
+    armEditResend,
+    cancelEditResend,
+    clearEditSeed,
     cancel,
   }
 })

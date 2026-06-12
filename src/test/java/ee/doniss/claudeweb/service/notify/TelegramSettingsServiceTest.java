@@ -42,7 +42,7 @@ class TelegramSettingsServiceTest {
     }
 
     private TelegramSettingsService service(ClaudeProperties props) {
-        return new TelegramSettingsService(props, MAPPER, new TelegramSender(props, MAPPER, http));
+        return new TelegramSettingsService(props, MAPPER, new TelegramSender(props, MAPPER, new TelegramCallbacks(), http));
     }
 
     @Test

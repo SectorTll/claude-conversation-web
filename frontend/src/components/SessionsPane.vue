@@ -80,6 +80,9 @@ function openHit(h: SearchHit) {
     <!-- Sessions of the selected project -->
     <template v-else>
       <div class="pane-label sessions-head">
+        <button class="mback" title="Back to projects" @click.stop="projects.selectedId = null">
+          ←
+        </button>
         <span>Sessions</span>
         <span v-if="sessions.loading" class="spinner pane-spinner"></span>
         <button
@@ -184,6 +187,25 @@ function openHit(h: SearchHit) {
   font-size: 11px;
   letter-spacing: 0;
   text-transform: none;
+}
+/* Mobile-only back to the projects pane (the panes show one at a time there). */
+.mback {
+  display: none;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.mback:hover {
+  color: var(--accent);
+}
+@media (max-width: 880px) {
+  .mback {
+    display: inline-block;
+  }
 }
 .push-right {
   margin-left: auto;

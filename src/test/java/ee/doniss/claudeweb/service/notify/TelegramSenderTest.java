@@ -31,7 +31,7 @@ class TelegramSenderTest {
     };
 
     private TelegramSender sender() {
-        return new TelegramSender(props, MAPPER, http);
+        return new TelegramSender(props, MAPPER, new TelegramCallbacks(), http);
     }
 
     @Test
@@ -74,6 +74,58 @@ class TelegramSenderTest {
         JsonNode body = MAPPER.readTree(bodyOf(requests.get(0)));
         assertTrue(body.get("text").asText().contains("https://192.168.1.10:8443/#/p/p/s/s"),
                 "absolute deep link appended: " + body.get("text").asText());
+    }
+
+    @Test
+    void displayOnlyEventGetsNoInlineKeyboard() {
+        props.getTelegram().setEnabled(true);
+        props.getTelegram().setBotToken("123:abc");
+        props.getTelegram().setChatId("42");
+
+        sender().send(EVENT); // built with the display-only constructor (no requestId)
+
+        JsonNode body = MAPPER.readTree(bodyOf(requests.get(0)));
+        assertFalse(body.has("reply_markup"));
+    }
+
+    @Test
+    void permissionEventCarriesAllowDenyButtonsWithRegistryTokens() {
+        props.getTelegram().setEnabled(true);
+        props.getTelegram().setBotToken("123:abc");
+        props.getTelegram().setChatId("42");
+        TelegramCallbacks callbacks = new TelegramCallbacks();
+        WaitingEvent event = new WaitingEvent("p", "s", "permission",
+                "Claude needs permission", "Allow Bash?", "/p/p/s/s", "req-1", java.util.List.of());
+
+        new TelegramSender(props, MAPPER, callbacks, http).send(event);
+
+        JsonNode rows = MAPPER.readTree(bodyOf(requests.get(0))).get("reply_markup").get("inline_keyboard");
+        assertEquals(1, rows.size());
+        assertEquals("✅ Allow", rows.get(0).get(0).get("text").asText());
+        assertEquals("❌ Deny", rows.get(0).get(1).get("text").asText());
+        TelegramCallbacks.Action allow = callbacks.take(rows.get(0).get(0).get("callback_data").asText());
+        assertTrue(allow.allow());
+        assertEquals("req-1", allow.requestId());
+        assertEquals("s", allow.sessionId());
+    }
+
+    @Test
+    void questionEventGetsOneButtonPerOption() {
+        props.getTelegram().setEnabled(true);
+        props.getTelegram().setBotToken("123:abc");
+        props.getTelegram().setChatId("42");
+        TelegramCallbacks callbacks = new TelegramCallbacks();
+        WaitingEvent event = new WaitingEvent("p", "s", "question",
+                "Claude has a question", "Pick", "/p/p/s/s", "req-2", java.util.List.of("Yes", "No"));
+
+        new TelegramSender(props, MAPPER, callbacks, http).send(event);
+
+        JsonNode rows = MAPPER.readTree(bodyOf(requests.get(0))).get("reply_markup").get("inline_keyboard");
+        assertEquals(2, rows.size());
+        assertEquals("Yes", rows.get(0).get(0).get("text").asText());
+        TelegramCallbacks.Action pick = callbacks.take(rows.get(1).get(0).get("callback_data").asText());
+        assertEquals("question", pick.kind());
+        assertEquals("No", pick.option());
     }
 
     /** Drain the request's BodyPublisher (java.net.http keeps the body as a publisher). */
